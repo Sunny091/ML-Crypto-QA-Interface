@@ -61,7 +61,7 @@ TOOLS = [
     },
     {
         "name": "predict_price",
-        "description": "使用機器學習模型預測加密貨幣明天的價格走勢（漲或跌）。基於技術指標分析。",
+        "description": "使用 Transformer 深度學習模型預測加密貨幣明天的價格走勢（漲或跌）。基於歷史價格和技術指標分析。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -69,6 +69,11 @@ TOOLS = [
                     "type": "string",
                     "enum": ["BTC", "ETH", "SOL"],
                     "description": "加密貨幣符號"
+                },
+                "model": {
+                    "type": "string",
+                    "enum": ["transformer", "lightgbm"],
+                    "description": "使用的模型類型（預設為 transformer）"
                 }
             },
             "required": ["symbol"]
@@ -159,8 +164,23 @@ def _get_price_history(symbol: str, days: int = None, start_date: str = None, en
     return get_price_history(symbol, days=days, start_date=start_date, end_date=end_date)
 
 
-def _predict_price(symbol: str) -> dict:
+def _predict_price(symbol: str, model: str = "transformer") -> dict:
     """ML 模型預測"""
+
+    # 優先使用 Transformer 模型
+    if model == "transformer":
+        try:
+            from models.transformer.predictor import predict_with_transformer
+            result = predict_with_transformer(symbol)
+            if "error" not in result:
+                # 添加信心程度
+                confidence = result.get("confidence", 0.5)
+                result["confidence_level"] = "高" if confidence > 0.7 else "中" if confidence > 0.55 else "低"
+                return result
+        except Exception as e:
+            print(f"[MCP] Transformer 預測失敗: {e}, 嘗試 LightGBM")
+
+    # Fallback 到 LightGBM
     from models.predictor import get_predictor
     from etl.extract import extract_price_data
     from etl.transform import get_latest_features, PRICE_ONLY_FEATURES
@@ -180,14 +200,15 @@ def _predict_price(symbol: str) -> dict:
             "symbol": symbol,
             "prediction": prediction,
             "probability": round(prob_up, 4),
-            "confidence": "高" if abs(prob_up - 0.5) > 0.2 else "中" if abs(prob_up - 0.5) > 0.1 else "低",
+            "confidence": round(prob_up if prediction == "UP" else 1 - prob_up, 4),
+            "confidence_level": "高" if abs(prob_up - 0.5) > 0.2 else "中" if abs(prob_up - 0.5) > 0.1 else "低",
             "features": features,
             "model": "LightGBM",
             "timestamp": datetime.now().isoformat()
         }
     except FileNotFoundError:
         return {
-            "error": "模型尚未訓練，請先執行 python -m models.training.train"
+            "error": "模型尚未訓練，請先執行 python -m models.transformer.train"
         }
 
 
