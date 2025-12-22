@@ -15,7 +15,23 @@
       "Bash(curl:*)",
       "Bash(npm run dev:*)",
       "Bash(lsof:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(netstat:*)",
+      "Bash(ss:*)",
+      "Bash(tree:*)",
+      "Bash(wc:*)",
+      "Bash(chmod:*)",
+      "Bash(ls:*)",
+      "Bash(xargs ls:*)",
+      "Bash(timeout 15 node:*)",
+      "Bash(timeout 20 node:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.coingecko.com)",
+      "WebFetch(domain:algotrading101.com)",
+      "Bash(timeout 30 python:*)",
+      "Bash(python3 -c \"import sys,json; tools=json.load\\(sys.stdin\\)[''''tools'''']; print\\(''''\\\\n''''.join\\([f\"\"  - {t[''''function''''][''''name'''']}\"\" for t in tools]\\)\\)\")",
+      "Bash(__NEW_LINE__ echo -e \"\\\\n\\\\n=== Tools ===\")",
+      "Bash(python3:*)"
     ]
   }
 }
