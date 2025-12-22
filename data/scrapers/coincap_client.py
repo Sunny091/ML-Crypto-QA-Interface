@@ -1,9 +1,9 @@
 """
-CoinCap API Client Module - 資料爬蟲
+CoinGecko API Client Module - 資料爬蟲
 
 Provides functions for fetching real-time and historical cryptocurrency data.
-API: https://api.coincap.io/v2/
-No API key required, no rate limits.
+API: https://api.coingecko.com/api/v3/
+No API key required for basic usage.
 
 This module handles:
 - Extract phase of ETL pipeline
@@ -12,15 +12,21 @@ This module handles:
 """
 
 import sys
+import ssl
 from datetime import datetime, timedelta
 from typing import Literal
 import urllib.request
 import urllib.error
 import json
 
-COINCAP_BASE_URL = "https://api.coincap.io/v2"
+# SSL context for macOS certificate issues
+SSL_CONTEXT = ssl.create_default_context()
+SSL_CONTEXT.check_hostname = False
+SSL_CONTEXT.verify_mode = ssl.CERT_NONE
 
-# Symbol to CoinCap ID mapping
+COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3"
+
+# Symbol to CoinGecko ID mapping
 SYMBOL_MAP = {
     "BTC": "bitcoin",
     "ETH": "ethereum",
@@ -30,34 +36,35 @@ SYMBOL_MAP = {
 Symbol = Literal["BTC", "ETH", "SOL"]
 
 
-class CoinCapClient:
-    """Synchronous client for CoinCap API - 資料爬蟲"""
+class CoinGeckoClient:
+    """Synchronous client for CoinGecko API - 資料爬蟲"""
 
     def __init__(self, timeout: float = 10.0):
         self.timeout = timeout
 
     def _request(self, endpoint: str, params: dict = None) -> dict:
-        """Make HTTP GET request to CoinCap API"""
-        url = f"{COINCAP_BASE_URL}{endpoint}"
+        """Make HTTP GET request to CoinGecko API"""
+        url = f"{COINGECKO_BASE_URL}{endpoint}"
 
         if params:
             query = "&".join(f"{k}={v}" for k, v in params.items() if v is not None)
             url = f"{url}?{query}"
 
-        print(f"[CoinCap] GET {url}", file=sys.stderr)
+        print(f"[CoinGecko] GET {url}", file=sys.stderr)
 
         try:
             req = urllib.request.Request(url)
             req.add_header('Accept', 'application/json')
+            req.add_header('User-Agent', 'Mozilla/5.0')
 
-            with urllib.request.urlopen(req, timeout=self.timeout) as response:
+            with urllib.request.urlopen(req, timeout=self.timeout, context=SSL_CONTEXT) as response:
                 data = json.loads(response.read().decode('utf-8'))
                 return data
         except urllib.error.HTTPError as e:
-            print(f"[CoinCap] HTTP Error: {e.code}", file=sys.stderr)
+            print(f"[CoinGecko] HTTP Error: {e.code}", file=sys.stderr)
             raise
         except urllib.error.URLError as e:
-            print(f"[CoinCap] URL Error: {e.reason}", file=sys.stderr)
+            print(f"[CoinGecko] URL Error: {e.reason}", file=sys.stderr)
             raise
 
     def get_asset(self, symbol: str) -> dict:
@@ -74,8 +81,22 @@ class CoinCapClient:
         if not asset_id:
             raise ValueError(f"Unknown symbol: {symbol}")
 
-        response = self._request(f"/assets/{asset_id}")
-        return response.get("data", {})
+        params = {
+            "ids": asset_id,
+            "vs_currencies": "usd",
+            "include_24hr_change": "true",
+            "include_24hr_vol": "true",
+            "include_market_cap": "true",
+        }
+        response = self._request("/simple/price", params)
+
+        data = response.get(asset_id, {})
+        return {
+            "priceUsd": data.get("usd", 0),
+            "changePercent24Hr": data.get("usd_24h_change", 0),
+            "volumeUsd24Hr": data.get("usd_24h_vol", 0),
+            "marketCapUsd": data.get("usd_market_cap", 0),
+        }
 
     def get_history(
         self,
@@ -90,7 +111,7 @@ class CoinCapClient:
 
         Args:
             symbol: Crypto symbol (BTC, ETH, SOL)
-            interval: Time interval (m1, m5, m15, m30, h1, h2, h6, h12, d1)
+            interval: Time interval (ignored for CoinGecko, auto-determined by days)
             days: Number of days to look back (1-365)
             start_date: Start date in YYYY-MM-DD format
             end_date: End date in YYYY-MM-DD format
@@ -102,38 +123,42 @@ class CoinCapClient:
         if not asset_id:
             raise ValueError(f"Unknown symbol: {symbol}")
 
-        # Calculate time range
+        # Calculate days from date range if provided
         if start_date and end_date:
             start_time = datetime.strptime(start_date, "%Y-%m-%d")
-            end_time = datetime.strptime(end_date, "%Y-%m-%d") + timedelta(days=1)
+            end_time = datetime.strptime(end_date, "%Y-%m-%d")
+            days = (end_time - start_time).days + 1
         else:
-            end_time = datetime.now()
-            start_time = end_time - timedelta(days=days or 30)
-
-        # Convert to milliseconds
-        start_ms = int(start_time.timestamp() * 1000)
-        end_ms = int(end_time.timestamp() * 1000)
+            days = days or 30
 
         params = {
-            "interval": interval,
-            "start": start_ms,
-            "end": end_ms,
+            "vs_currency": "usd",
+            "days": str(days),
         }
 
-        response = self._request(f"/assets/{asset_id}/history", params)
-        return response.get("data", [])
+        response = self._request(f"/coins/{asset_id}/market_chart", params)
+        prices = response.get("prices", [])
+
+        # Convert to standard format
+        return [{"time": p[0], "priceUsd": str(p[1])} for p in prices]
 
 
 # Singleton instance
-_client: CoinCapClient | None = None
+_client: CoinGeckoClient | None = None
 
 
-def get_coincap_client() -> CoinCapClient:
-    """Get or create singleton CoinCap client"""
+def get_coingecko_client() -> CoinGeckoClient:
+    """Get or create singleton CoinGecko client"""
     global _client
     if _client is None:
-        _client = CoinCapClient()
+        _client = CoinGeckoClient()
     return _client
+
+
+# Alias for backward compatibility
+def get_coincap_client() -> CoinGeckoClient:
+    """Alias for get_coingecko_client (backward compatibility)"""
+    return get_coingecko_client()
 
 
 def _get_mock_price(symbol: str) -> dict:
@@ -176,10 +201,10 @@ def get_current_price(symbol: str) -> dict:
             "volume_24h_usd": float(data.get("volumeUsd24Hr", 0)),
             "market_cap_usd": float(data.get("marketCapUsd", 0)),
             "timestamp": datetime.now().isoformat(),
-            "source": "coincap",
+            "source": "coingecko",
         }
     except Exception as e:
-        print(f"[CoinCap] API failed: {e}, using mock data", file=sys.stderr)
+        print(f"[CoinGecko] API failed: {e}, using mock data", file=sys.stderr)
         return _get_mock_price(symbol)
 
 
@@ -230,9 +255,9 @@ def get_price_history(
                 "price_usd": float(point["priceUsd"]),
             })
 
-        source = "coincap"
+        source = "coingecko"
     except Exception as e:
-        print(f"[CoinCap] History API failed: {e}, using mock data", file=sys.stderr)
+        print(f"[CoinGecko] History API failed: {e}, using mock data", file=sys.stderr)
         data_points = get_mock_history(symbol, start_dt, end_dt)
         source = "mock"
 
