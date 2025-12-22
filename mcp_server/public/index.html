@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crypto Predictor</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .header {
+      background: #16213e;
+      padding: 1rem 2rem;
+      border-bottom: 1px solid #0f3460;
+    }
+
+    .header h1 {
+      font-size: 1.5rem;
+      color: #e94560;
+    }
+
+    .header .subtitle {
+      font-size: 0.85rem;
+      color: #888;
+      margin-top: 0.25rem;
+    }
+
+    .main-container {
+      flex: 1;
+      display: flex;
+      max-width: 900px;
+      margin: 0 auto;
+      width: 100%;
+      padding: 1rem;
+    }
+
+    .chat-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .chat-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      background: #16213e;
+      border-radius: 12px;
+    }
+
+    .message {
+      max-width: 90%;
+      padding: 1rem;
+      border-radius: 12px;
+      line-height: 1.5;
+    }
+
+    .message.with-chart {
+      max-width: 100%;
+      width: 100%;
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: #0f3460;
+      color: #fff;
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: #1a1a2e;
+      border: 1px solid #0f3460;
+    }
+
+    .message.system {
+      align-self: center;
+      background: transparent;
+      color: #888;
+      font-size: 0.85rem;
+      padding: 0.5rem;
+    }
+
+    .message pre {
+      background: #0a0a15;
+      padding: 0.75rem;
+      border-radius: 6px;
+      overflow-x: auto;
+      margin: 0.5rem 0;
+      font-size: 0.85rem;
+    }
+
+    .message img {
+      max-width: 100%;
+      border-radius: 8px;
+      margin-top: 0.5rem;
+    }
+
+    .message h2, .message h3, .message h4 {
+      margin: 0.75rem 0 0.5rem 0;
+      color: #e94560;
+    }
+
+    .message h2 { font-size: 1.3rem; }
+    .message h3 { font-size: 1.15rem; }
+    .message h4 { font-size: 1rem; }
+
+    .message strong {
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .message em {
+      font-style: italic;
+      color: #ccc;
+    }
+
+    .message code {
+      background: #0a0a15;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-family: 'Consolas', 'Monaco', monospace;
+      font-size: 0.9em;
+      color: #e94560;
+    }
+
+    .message pre code {
+      display: block;
+      padding: 0;
+      color: #eee;
+      background: transparent;
+    }
+
+    .message ul, .message ol {
+      margin: 0.5rem 0;
+      padding-left: 1.5rem;
+    }
+
+    .message li {
+      margin: 0.25rem 0;
+    }
+
+    .message table {
+      border-collapse: collapse;
+      margin: 0.5rem 0;
+      width: 100%;
+      font-size: 0.9rem;
+    }
+
+    .message td, .message th {
+      border: 1px solid #333;
+      padding: 0.4rem 0.6rem;
+      text-align: left;
+    }
+
+    .message tr:nth-child(1) td {
+      background: #0f3460;
+      font-weight: 600;
+    }
+
+    .message hr {
+      border: none;
+      border-top: 1px solid #333;
+      margin: 0.75rem 0;
+    }
+
+    .message a {
+      color: #60a5fa;
+      text-decoration: none;
+    }
+
+    .message a:hover {
+      text-decoration: underline;
+    }
+
+    /* 內嵌圖表樣式 */
+    .inline-chart-container {
+      background: #0a0a15;
+      border-radius: 8px;
+      padding: 1rem;
+      margin: 0.75rem 0;
+      position: relative;
+    }
+
+    .inline-chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid #333;
+    }
+
+    .inline-chart-title {
+      font-weight: 600;
+      color: #e94560;
+    }
+
+    .inline-chart-period {
+      font-size: 0.8rem;
+      color: #888;
+    }
+
+    .inline-chart-wrapper {
+      position: relative;
+      height: 250px;
+      width: 100%;
+    }
+
+    .inline-chart-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .inline-chart-loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 250px;
+      color: #888;
+    }
+
+    .input-container {
+      display: flex;
+      gap: 0.5rem;
+      padding: 1rem 0;
+    }
+
+    .input-container input {
+      flex: 1;
+      padding: 0.75rem 1rem;
+      border: 1px solid #0f3460;
+      border-radius: 8px;
+      background: #16213e;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    .input-container input:focus {
+      outline: none;
+      border-color: #e94560;
+    }
+
+    .input-container button {
+      padding: 0.75rem 1.5rem;
+      background: #e94560;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .input-container button:hover {
+      background: #f05070;
+    }
+
+    .input-container button:disabled {
+      background: #555;
+      cursor: not-allowed;
+    }
+
+    .quick-actions {
+      display: flex;
+      gap: 0.5rem;
+      padding: 0.5rem 0;
+      flex-wrap: wrap;
+    }
+
+    .quick-actions button {
+      padding: 0.5rem 1rem;
+      background: #0f3460;
+      color: #ccc;
+      border: 1px solid #1a4080;
+      border-radius: 20px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .quick-actions button:hover {
+      background: #1a4080;
+      color: #fff;
+    }
+
+    .status {
+      text-align: center;
+      padding: 0.5rem;
+      font-size: 0.85rem;
+      color: #888;
+    }
+
+    .status.connected {
+      color: #4ade80;
+    }
+
+    .status.error {
+      color: #f87171;
+    }
+
+    .loading {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 2px solid #e94560;
+      border-radius: 50%;
+      border-top-color: transparent;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Crypto Predictor</h1>
+    <div class="subtitle">AI 加密貨幣價格預測助手</div>
+  </div>
+
+  <div class="main-container">
+    <div class="chat-panel">
+      <div id="status" class="status">正在連接...</div>
+
+      <div id="chat" class="chat-container">
+        <div class="message system">歡迎使用 Crypto Predictor！可以詢問價格、查看圖表或請求預測分析。</div>
+      </div>
+
+      <div class="quick-actions">
+        <button onclick="sendQuickMessage('BTC 現在的價格是多少？')">BTC 價格</button>
+        <button onclick="sendQuickMessage('ETH 現在的價格是多少？')">ETH 價格</button>
+        <button onclick="sendQuickMessage('預測 BTC 明天的價格走勢')">BTC 預測</button>
+        <button onclick="requestChart('BTC', 30)">BTC 30天圖表</button>
+        <button onclick="requestChart('ETH', 30)">ETH 30天圖表</button>
+      </div>
+
+      <div class="input-container">
+        <input type="text" id="input" placeholder="輸入您的問題..." onkeypress="handleKeyPress(event)">
+        <button id="sendBtn" onclick="sendMessage()">發送</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const chatContainer = document.getElementById('chat');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('sendBtn');
+    const statusEl = document.getElementById('status');
+    let isLoading = false;
+    let chartCounter = 0;
+    const chartInstances = {};
+
+    // 檢查連接狀態
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        if (data.status === 'ok') {
+          statusEl.textContent = `已連接 | ${data.tools} 個工具可用`;
+          statusEl.className = 'status connected';
+        }
+      } catch (error) {
+        statusEl.textContent = '連接失敗';
+        statusEl.className = 'status error';
+      }
+    }
+
+    // 添加訊息到聊天區
+    function addMessage(content, role) {
+      const div = document.createElement('div');
+      div.className = `message ${role}`;
+      div.innerHTML = formatMessage(content);
+      chatContainer.appendChild(div);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+      return div;
+    }
+
+    // 請求圖表 (天數模式)
+    async function requestChart(symbol, days) {
+      return requestChartWithParams(symbol, { days }, `近 ${days} 天`);
+    }
+
+    // 請求圖表 (日期範圍模式)
+    async function requestChartByDateRange(symbol, startDate, endDate) {
+      return requestChartWithParams(symbol, { start_date: startDate, end_date: endDate }, `${startDate} ~ ${endDate}`);
+    }
+
+    // 通用圖表請求函數
+    async function requestChartWithParams(symbol, params, periodLabel) {
+      if (isLoading) return;
+
+      isLoading = true;
+      sendBtn.disabled = true;
+
+      // 添加用戶請求訊息
+      addMessage(`顯示 ${symbol} ${periodLabel} 價格圖表`, 'user');
+
+      // 創建圖表訊息
+      const chartId = `chart-${++chartCounter}`;
+      const chartDiv = document.createElement('div');
+      chartDiv.className = 'message assistant with-chart';
+      chartDiv.innerHTML = `
+        <div class="inline-chart-container">
+          <div class="inline-chart-header">
+            <span class="inline-chart-title">${symbol} 價格走勢</span>
+            <span class="inline-chart-period">${periodLabel}</span>
+          </div>
+          <div class="inline-chart-loading" id="${chartId}-loading">
+            <span class="loading"></span>&nbsp;載入中...
+          </div>
+          <div class="inline-chart-wrapper" id="${chartId}-wrapper" style="display: none;">
+            <canvas id="${chartId}" class="inline-chart-canvas"></canvas>
+          </div>
+        </div>
+      `;
+      chatContainer.appendChild(chartDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+
+      try {
+        const res = await fetch('/api/chart-data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol, ...params })
+        });
+
+        const data = await res.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // 隱藏載入，顯示圖表
+        document.getElementById(`${chartId}-loading`).style.display = 'none';
+        document.getElementById(`${chartId}-wrapper`).style.display = 'block';
+
+        // 渲染圖表
+        renderInlineChart(chartId, data);
+
+      } catch (error) {
+        document.getElementById(`${chartId}-loading`).innerHTML =
+          `<span style="color: #f87171">載入失敗: ${error.message}</span>`;
+      }
+
+      isLoading = false;
+      sendBtn.disabled = false;
+      input.focus();
+    }
+
+    // 解析日期字串為 YYYY-MM-DD 格式
+    function parseDate(dateStr) {
+      const now = new Date();
+      const year = now.getFullYear();
+
+      // 格式: YYYY-MM-DD
+      if (/^\d{4}-\d{1,2}-\d{1,2}$/.test(dateStr)) {
+        const [y, m, d] = dateStr.split('-');
+        return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+
+      // 格式: MM/DD 或 M/D
+      if (/^\d{1,2}\/\d{1,2}$/.test(dateStr)) {
+        const [m, d] = dateStr.split('/');
+        return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+
+      // 格式: MM-DD 或 M-D
+      if (/^\d{1,2}-\d{1,2}$/.test(dateStr)) {
+        const [m, d] = dateStr.split('-');
+        return `${year}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+      }
+
+      // 格式: X月X日
+      const cnMatch = dateStr.match(/(\d{1,2})月(\d{1,2})日?/);
+      if (cnMatch) {
+        return `${year}-${cnMatch[1].padStart(2, '0')}-${cnMatch[2].padStart(2, '0')}`;
+      }
+
+      return null;
+    }
+
+    // 渲染內嵌圖表
+    function renderInlineChart(chartId, data) {
+      const canvas = document.getElementById(chartId);
+      if (!canvas) return;
+
+      const ctx = canvas.getContext('2d');
+
+      // 銷毀舊圖表
+      if (chartInstances[chartId]) {
+        chartInstances[chartId].destroy();
+      }
+
+      // 格式化數據
+      const chartData = data.timestamps.map((timestamp, i) => ({
+        x: new Date(timestamp),
+        y: data.prices[i]
+      }));
+
+      // 根據數據量決定時間單位
+      const days = chartData.length;
+      let timeUnit = 'day';
+      if (days > 90) timeUnit = 'month';
+      else if (days > 30) timeUnit = 'week';
+
+      chartInstances[chartId] = new Chart(ctx, {
+        type: 'line',
+        data: {
+          datasets: [{
+            label: `${data.symbol} Price (USD)`,
+            data: chartData,
+            borderColor: '#e94560',
+            backgroundColor: 'rgba(233, 69, 96, 0.15)',
+            fill: true,
+            tension: 0.2,
+            pointRadius: days <= 30 ? 2 : 0,
+            pointHoverRadius: 6,
+            pointBackgroundColor: '#e94560',
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 500 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: '#16213e',
+              titleColor: '#e94560',
+              bodyColor: '#eee',
+              borderColor: '#0f3460',
+              borderWidth: 1,
+              padding: 10,
+              callbacks: {
+                title: function(context) {
+                  const date = new Date(context[0].parsed.x);
+                  return date.toLocaleDateString('zh-TW', {
+                    year: 'numeric', month: 'short', day: 'numeric'
+                  });
+                },
+                label: function(context) {
+                  return `$${context.parsed.y.toLocaleString(undefined, {
+                    minimumFractionDigits: 2, maximumFractionDigits: 2
+                  })}`;
+                }
+              }
+            }
+          },
+          scales: {
+            x: {
+              type: 'time',
+              time: {
+                unit: timeUnit,
+                displayFormats: { day: 'MM/dd', week: 'MM/dd', month: 'yyyy/MM' }
+              },
+              grid: { color: 'rgba(51, 51, 51, 0.5)', drawBorder: false },
+              ticks: { color: '#888', maxRotation: 0, autoSkip: true, maxTicksLimit: 6 }
+            },
+            y: {
+              grid: { color: 'rgba(51, 51, 51, 0.5)', drawBorder: false },
+              ticks: {
+                color: '#888',
+                callback: function(value) {
+                  if (value >= 1000) return '$' + (value / 1000).toFixed(1) + 'K';
+                  return '$' + value.toLocaleString();
+                }
+              }
+            }
+          },
+          interaction: { mode: 'nearest', axis: 'x', intersect: false }
+        }
+      });
+
+      // 滾動到底部
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // 格式化訊息 (Markdown to HTML)
+    function formatMessage(text) {
+      if (!text) return '';
+
+      // 檢查是否包含 base64 圖片標記
+      if (text.includes('[CHART_IMAGE:')) {
+        const match = text.match(/\[CHART_IMAGE:(.*?)\]/);
+        if (match) {
+          const base64 = match[1];
+          text = text.replace(match[0], `<img src="data:image/png;base64,${base64}" alt="Price Chart">`);
+        }
+      }
+
+      // 保護 code blocks 先替換成佔位符
+      const codeBlocks = [];
+      text = text.replace(/```(\w+)?\n([\s\S]*?)```/g, (match, lang, code) => {
+        codeBlocks.push(`<pre><code class="language-${lang || ''}">${escapeHtml(code.trim())}</code></pre>`);
+        return `__CODE_BLOCK_${codeBlocks.length - 1}__`;
+      });
+
+      // 處理 inline code
+      text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+      // 處理標題
+      text = text.replace(/^### (.+)$/gm, '<h4>$1</h4>');
+      text = text.replace(/^## (.+)$/gm, '<h3>$1</h3>');
+      text = text.replace(/^# (.+)$/gm, '<h2>$1</h2>');
+
+      // 處理粗體和斜體
+      text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+      text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+      text = text.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
+      text = text.replace(/__(.+?)__/g, '<strong>$1</strong>');
+      text = text.replace(/_(.+?)_/g, '<em>$1</em>');
+
+      // 處理連結
+      text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+
+      // 處理無序列表
+      text = text.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
+      text = text.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+      // 處理有序列表
+      text = text.replace(/^\s*\d+\.\s+(.+)$/gm, '<li>$1</li>');
+
+      // 處理表格
+      text = text.replace(/^\|(.+)\|$/gm, (match, content) => {
+        const cells = content.split('|').map(cell => cell.trim());
+        if (cells.every(cell => /^[-:]+$/.test(cell))) {
+          return ''; // 跳過分隔行
+        }
+        const cellTags = cells.map(cell => `<td>${cell}</td>`).join('');
+        return `<tr>${cellTags}</tr>`;
+      });
+      text = text.replace(/(<tr>.*<\/tr>\n?)+/g, '<table>$&</table>');
+
+      // 處理水平線
+      text = text.replace(/^---+$/gm, '<hr>');
+
+      // 還原 code blocks
+      codeBlocks.forEach((block, i) => {
+        text = text.replace(`__CODE_BLOCK_${i}__`, block);
+      });
+
+      // 處理換行
+      text = text.replace(/\n/g, '<br>');
+
+      // 清理多餘的 <br>
+      text = text.replace(/<br>\s*<(h[234]|ul|li|table|tr|hr|pre)/g, '<$1');
+      text = text.replace(/<\/(h[234]|ul|li|table|tr|pre)>\s*<br>/g, '</$1>');
+
+      return text;
+    }
+
+    // HTML 轉義
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // 發送訊息
+    async function sendMessage() {
+      const message = input.value.trim();
+      if (!message || isLoading) return;
+
+      // 檢查是否為日期範圍圖表請求
+      // 支援格式: "BTC 12/1 到 12/22", "ETH 2024-12-01 到 2024-12-22", "SOL 12月1日 到 12月22日"
+      const dateRangeMatch = message.match(/(?:顯示|查看|生成|畫|給我看?)?\s*(BTC|ETH|SOL|btc|eth|sol)\s*(?:的|從)?[：:\s]*(\d{1,2}[\/\-月]\d{1,2}日?|\d{4}-\d{1,2}-\d{1,2})\s*(?:到|至|~|-)\s*(\d{1,2}[\/\-月]\d{1,2}日?|\d{4}-\d{1,2}-\d{1,2})/i);
+      if (dateRangeMatch) {
+        const symbol = dateRangeMatch[1].toUpperCase();
+        const startDate = parseDate(dateRangeMatch[2]);
+        const endDate = parseDate(dateRangeMatch[3]);
+        if (startDate && endDate) {
+          input.value = '';
+          await requestChartByDateRange(symbol, startDate, endDate);
+          return;
+        }
+      }
+
+      // 檢查是否為天數圖表請求
+      const chartMatch = message.match(/(?:顯示|查看|生成|畫|給我看?)\s*(BTC|ETH|SOL|btc|eth|sol)\s*(?:的)?.*?(\d+)\s*(?:天|日)/i);
+      if (chartMatch) {
+        const symbol = chartMatch[1].toUpperCase();
+        const days = parseInt(chartMatch[2]);
+        input.value = '';
+        await requestChart(symbol, Math.min(Math.max(days, 1), 365));
+        return;
+      }
+
+      isLoading = true;
+      sendBtn.disabled = true;
+      input.value = '';
+
+      addMessage(message, 'user');
+      const loadingDiv = addMessage('<span class="loading"></span> 正在思考...', 'assistant');
+
+      try {
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message })
+        });
+
+        const data = await res.json();
+
+        if (data.success) {
+          loadingDiv.innerHTML = formatMessage(data.response);
+        } else {
+          loadingDiv.innerHTML = `<span style="color: #f87171">錯誤: ${data.error}</span>`;
+        }
+      } catch (error) {
+        loadingDiv.innerHTML = `<span style="color: #f87171">網路錯誤: ${error.message}</span>`;
+      }
+
+      isLoading = false;
+      sendBtn.disabled = false;
+      input.focus();
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    // 快捷訊息
+    function sendQuickMessage(msg) {
+      input.value = msg;
+      sendMessage();
+    }
+
+    // 按鍵處理
+    function handleKeyPress(e) {
+      if (e.key === 'Enter') sendMessage();
+    }
+
+    // 初始化
+    checkStatus();
+    setInterval(checkStatus, 30000);
+    input.focus();
+  </script>
+</body>
+</html>

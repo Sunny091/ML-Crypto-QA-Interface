@@ -1,0 +1,19 @@
+{
+  "name": "crypto-predictor-mcp",
+  "version": "1.0.0",
+  "description": "加密貨幣價格預測 MCP 服務",
+  "main": "web-server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node web-server.js",
+    "dev": "node --watch web-server.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "openai": "^4.20.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

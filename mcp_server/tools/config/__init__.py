@@ -11,7 +11,7 @@ from typing import Literal
 from pydantic import BaseModel, field_validator
 from dotenv import load_dotenv
 
-# Load .env from project root (two levels up from config/)
+# Load .env from mcp_server root (two levels up from tools/config/)
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 load_dotenv(PROJECT_ROOT / ".env")
 
@@ -35,6 +35,7 @@ class ModelConfig(BaseModel):
     model_dir: Path
     price_only_model_name: str
     price_text_model_name: str  # Phase 4
+    transformer_model_name: str  # Transformer model
 
     @property
     def price_only_model_path(self) -> Path:
@@ -43,6 +44,10 @@ class ModelConfig(BaseModel):
     @property
     def price_text_model_path(self) -> Path:
         return self.model_dir / self.price_text_model_name
+
+    @property
+    def transformer_model_path(self) -> Path:
+        return self.model_dir / self.transformer_model_name
 
 
 class NewsConfig(BaseModel):
@@ -100,6 +105,7 @@ def load_config() -> Config:
                 model_dir=Path(_get_env("MODEL_DIR", "./models")),
                 price_only_model_name=_get_env("PRICE_ONLY_MODEL_NAME", "price_only_lgbm.pkl"),
                 price_text_model_name=_get_env("PRICE_TEXT_MODEL_NAME", "price_text_lgbm.pkl"),
+                transformer_model_name=_get_env("TRANSFORMER_MODEL_NAME", "transformer.pt"),
             ),
             data=DataConfig(
                 price_data_source=_get_env("PRICE_DATA_SOURCE", "mock"),  # type: ignore
