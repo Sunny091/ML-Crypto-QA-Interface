@@ -39,7 +39,8 @@
       "Bash(nslookup:*)",
       "WebFetch(domain:docs.coincap.io)",
       "WebFetch(domain:pro.coincap.io)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(git checkout:*)"
     ]
   }
 }

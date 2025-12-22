@@ -34,7 +34,7 @@ TOOLS = [
     },
     {
         "name": "get_price_history",
-        "description": "獲取加密貨幣的歷史價格數據。可指定天數或日期範圍。",
+        "description": "獲取加密貨幣的歷史價格數據。可以用 days 指定近幾天，或用 start_date/end_date 指定日期範圍。例如：近7天用 days=7，指定範圍用 start_date='2024-12-01' 和 end_date='2024-12-15'。",
         "parameters": {
             "type": "object",
             "properties": {
@@ -45,8 +45,15 @@ TOOLS = [
                 },
                 "days": {
                     "type": "integer",
-                    "description": "查詢天數 (1-365)",
-                    "default": 30
+                    "description": "查詢近幾天的數據 (1-365)，與 start_date/end_date 二選一"
+                },
+                "start_date": {
+                    "type": "string",
+                    "description": "開始日期，格式 YYYY-MM-DD，例如 2024-12-01"
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "結束日期，格式 YYYY-MM-DD，例如 2024-12-15"
                 }
             },
             "required": ["symbol"]
@@ -146,10 +153,10 @@ def _get_current_price(symbol: str) -> dict:
     return get_current_price(symbol)
 
 
-def _get_price_history(symbol: str, days: int = 30) -> dict:
+def _get_price_history(symbol: str, days: int = None, start_date: str = None, end_date: str = None) -> dict:
     """獲取歷史價格"""
     from data.scrapers.coincap_client import get_price_history
-    return get_price_history(symbol, days=days)
+    return get_price_history(symbol, days=days, start_date=start_date, end_date=end_date)
 
 
 def _predict_price(symbol: str) -> dict:

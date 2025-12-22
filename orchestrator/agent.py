@@ -147,6 +147,34 @@ class CryptoAgent:
 
         return results
 
+    def _parse_date(self, date_str: str) -> str:
+        """解析日期字串為 YYYY-MM-DD 格式"""
+        from datetime import datetime
+        now = datetime.now()
+        year = now.year
+
+        # 格式: YYYY-MM-DD
+        if re.match(r'^\d{4}-\d{1,2}-\d{1,2}$', date_str):
+            parts = date_str.split('-')
+            return f"{parts[0]}-{parts[1].zfill(2)}-{parts[2].zfill(2)}"
+
+        # 格式: MM/DD 或 M/D
+        if re.match(r'^\d{1,2}/\d{1,2}$', date_str):
+            parts = date_str.split('/')
+            return f"{year}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
+
+        # 格式: MM-DD 或 M-D
+        if re.match(r'^\d{1,2}-\d{1,2}$', date_str):
+            parts = date_str.split('-')
+            return f"{year}-{parts[0].zfill(2)}-{parts[1].zfill(2)}"
+
+        # 格式: X月X日
+        cn_match = re.match(r'(\d{1,2})月(\d{1,2})日?', date_str)
+        if cn_match:
+            return f"{year}-{cn_match.group(1).zfill(2)}-{cn_match.group(2).zfill(2)}"
+
+        return None
+
     def _fallback_tool_detection(self, user_message: str) -> list:
         """備用工具檢測（當 LLM 不支援 function calling 時）"""
         message_lower = user_message.lower()
@@ -175,15 +203,68 @@ class CryptoAgent:
                         "arguments": {"symbol": symbol_upper}
                     })
 
-                if any(word in message_lower for word in ["歷史", "過去", "history"]):
-                    days = 30
-                    # 嘗試提取天數
-                    match = re.search(r'(\d+)\s*(?:天|日|days?)', message_lower)
-                    if match:
-                        days = min(int(match.group(1)), 365)
+                # 歷史價格 - 支援多種時間格式
+                # 當有日期範圍或天數時，也觸發歷史價格查詢
+                has_date_indicator = (
+                    any(word in message_lower for word in ["歷史", "過去", "history", "走勢", "圖表", "chart", "近", "最近", "從", "到現在", "至今", "到今天"]) or
+                    re.search(r'\d{1,2}[月\/]\d{1,2}', user_message) or  # 日期格式 (X月X日, X/X)
+                    re.search(r'\d{4}-\d{1,2}-\d{1,2}', user_message) or  # 日期格式 (YYYY-MM-DD)
+                    re.search(r'(\d+)\s*(?:天|日|週|周|月)', message_lower)  # 天數格式
+                )
+                if has_date_indicator:
+                    from datetime import datetime
+                    arguments = {"symbol": symbol_upper}
+                    today = datetime.now().strftime("%Y-%m-%d")
+
+                    # 嘗試匹配「從 X 到現在」: "從12/1到現在", "12月1日至今", "從2024-12-01到今天"
+                    to_now_match = re.search(
+                        r'(?:從)?(\d{1,2}月\d{1,2}日?|\d{1,2}[\/]\d{1,2}|\d{4}-\d{1,2}-\d{1,2})\s*(?:到|至)?\s*(?:現在|今天|今日|now|today|至今)',
+                        user_message, re.IGNORECASE
+                    )
+                    if to_now_match:
+                        start_date = self._parse_date(to_now_match.group(1))
+                        if start_date:
+                            arguments["start_date"] = start_date
+                            arguments["end_date"] = today
+
+                    # 嘗試匹配日期範圍: "12/1到12/15", "12月1日到12月15日", "2024-12-01到2024-12-15"
+                    elif not to_now_match:
+                        date_range_match = re.search(
+                            r'(\d{1,2}月\d{1,2}日?|\d{1,2}[\/]\d{1,2}|\d{4}-\d{1,2}-\d{1,2})\s*(?:到|至|~)\s*(\d{1,2}月\d{1,2}日?|\d{1,2}[\/]\d{1,2}|\d{4}-\d{1,2}-\d{1,2})',
+                            user_message
+                        )
+                        if date_range_match:
+                            start_date = self._parse_date(date_range_match.group(1))
+                            end_date = self._parse_date(date_range_match.group(2))
+                            if start_date and end_date:
+                                arguments["start_date"] = start_date
+                                arguments["end_date"] = end_date
+
+                    if "start_date" not in arguments:
+                        # 嘗試匹配天數: "近7天", "過去30天", "最近一週"
+                        days = 30  # 預設值
+                        days_match = re.search(r'(?:近|過去|最近)\s*(\d+)\s*(?:天|日|days?)', message_lower)
+                        if days_match:
+                            days = min(int(days_match.group(1)), 365)
+                        else:
+                            # 匹配 "X天" 或 "X日"
+                            simple_days_match = re.search(r'(\d+)\s*(?:天|日|days?)', message_lower)
+                            if simple_days_match:
+                                days = min(int(simple_days_match.group(1)), 365)
+                            # 匹配週/月
+                            elif "一週" in message_lower or "一周" in message_lower:
+                                days = 7
+                            elif "兩週" in message_lower or "两周" in message_lower:
+                                days = 14
+                            elif "一個月" in message_lower or "一个月" in message_lower:
+                                days = 30
+                            elif "三個月" in message_lower or "三个月" in message_lower:
+                                days = 90
+                        arguments["days"] = days
+
                     tool_calls.append({
                         "tool": "get_price_history",
-                        "arguments": {"symbol": symbol_upper, "days": days}
+                        "arguments": arguments
                     })
 
                 break  # 只處理第一個匹配的幣種

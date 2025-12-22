@@ -726,7 +726,34 @@
         const data = await res.json();
 
         if (data.success) {
-          loadingDiv.innerHTML = formatMessage(data.response);
+          // 檢查是否有圖表數據
+          if (data.chart_data) {
+            // 移除 loading 訊息
+            loadingDiv.remove();
+
+            // 創建圖表訊息
+            const chartId = `chart-${++chartCounter}`;
+            const chartDiv = document.createElement('div');
+            chartDiv.className = 'message assistant with-chart';
+            chartDiv.innerHTML = `
+              <div style="margin-bottom: 0.5rem;">${formatMessage(data.response)}</div>
+              <div class="inline-chart-container">
+                <div class="inline-chart-header">
+                  <span class="inline-chart-title">${data.chart_data.symbol} 價格走勢</span>
+                  <span class="inline-chart-period">${data.chart_data.period}</span>
+                </div>
+                <div class="inline-chart-wrapper">
+                  <canvas id="${chartId}" class="inline-chart-canvas"></canvas>
+                </div>
+              </div>
+            `;
+            chatContainer.appendChild(chartDiv);
+
+            // 渲染圖表
+            renderInlineChart(chartId, data.chart_data);
+          } else {
+            loadingDiv.innerHTML = formatMessage(data.response);
+          }
         } else {
           loadingDiv.innerHTML = `<span style="color: #f87171">錯誤: ${data.error}</span>`;
         }

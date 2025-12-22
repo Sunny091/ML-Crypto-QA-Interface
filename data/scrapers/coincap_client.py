@@ -123,11 +123,24 @@ class CoinGeckoClient:
         if not asset_id:
             raise ValueError(f"Unknown symbol: {symbol}")
 
-        # Calculate days from date range if provided
+        now = datetime.now()
+        filter_start = None
+        filter_end = None
+
+        # 如果指定了日期範圍，計算需要獲取的天數
         if start_date and end_date:
             start_time = datetime.strptime(start_date, "%Y-%m-%d")
             end_time = datetime.strptime(end_date, "%Y-%m-%d")
-            days = (end_time - start_time).days + 1
+
+            # 計算從今天到開始日期的天數
+            days_from_now = (now - start_time).days + 1
+
+            # CoinGecko 免費版最多支援 365 天
+            days = min(days_from_now, 365)
+
+            # 設定過濾範圍
+            filter_start = start_time
+            filter_end = end_time + timedelta(days=1)  # 包含結束日期
         else:
             days = days or 30
 
@@ -135,12 +148,25 @@ class CoinGeckoClient:
             "vs_currency": "usd",
             "days": str(days),
         }
-
         response = self._request(f"/coins/{asset_id}/market_chart", params)
+
         prices = response.get("prices", [])
 
-        # Convert to standard format
-        return [{"time": p[0], "priceUsd": str(p[1])} for p in prices]
+        # Convert to standard format and filter by date range if needed
+        result = []
+        for p in prices:
+            timestamp_ms = p[0]
+            price = p[1]
+            dt = datetime.fromtimestamp(timestamp_ms / 1000)
+
+            # 如果有日期範圍過濾
+            if filter_start and filter_end:
+                if dt < filter_start or dt >= filter_end:
+                    continue
+
+            result.append({"time": timestamp_ms, "priceUsd": str(price)})
+
+        return result
 
 
 # Singleton instance
