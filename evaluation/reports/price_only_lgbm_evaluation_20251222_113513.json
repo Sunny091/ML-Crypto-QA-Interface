@@ -1,0 +1,39 @@
+{
+  "model_name": "price_only_lgbm",
+  "timestamp": "2025-12-22T11:35:13.317194",
+  "metrics": {
+    "accuracy": 0.543859649122807,
+    "precision": 0.5485218794111717,
+    "recall": 0.543859649122807,
+    "f1_score": 0.5422005603012767,
+    "confusion_matrix": [
+      [
+        100,
+        108
+      ],
+      [
+        74,
+        117
+      ]
+    ],
+    "true_negative": 100,
+    "false_positive": 108,
+    "false_negative": 74,
+    "true_positive": 117,
+    "roc_auc": 0.561405054369714,
+    "feature_importance": {
+      "return_1d": 374,
+      "rsi_14": 382,
+      "volatility_7d": 379
+    },
+    "cv_scores": [
+      0.5625,
+      0.4875,
+      0.4875,
+      0.4625,
+      0.4810126582278481
+    ],
+    "cv_mean": 0.4962025316455696,
+    "cv_std": 0.0343901594007879
+  }
+}

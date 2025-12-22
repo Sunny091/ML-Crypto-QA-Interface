@@ -1,0 +1,38 @@
+# Crypto Price Prediction ML System - Dependencies
+# 自動化從資料收集到模型訓練跟部署
+
+# ===== Core Dependencies =====
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# ===== Data Processing (DataOps) =====
+pandas>=2.0.0
+numpy>=1.24.0
+
+# ===== Machine Learning (MLOps) =====
+lightgbm>=4.0.0
+scikit-learn>=1.3.0
+joblib>=1.3.0
+
+# ===== Deep Learning (Optional) =====
+# torch>=2.0.0  # Uncomment for Transformer model
+
+# ===== Sentiment Analysis =====
+# transformers>=4.30.0  # Uncomment for FinBERT
+
+# ===== API Deployment (Flask) =====
+flask>=3.0.0
+flask-cors>=4.0.0
+
+# ===== Visualization =====
+matplotlib>=3.8.0
+# mplfinance>=0.12.10  # Uncomment for candlestick charts
+
+# ===== MCP Server (Optional) =====
+# fastmcp>=0.1.0  # Uncomment for MCP support
+
+# ===== MLflow (Optional) =====
+# mlflow>=2.9.0  # Uncomment for experiment tracking
+
+# ===== Docker/DVC (Optional) =====
+# dvc>=3.0.0  # Uncomment for data version control
