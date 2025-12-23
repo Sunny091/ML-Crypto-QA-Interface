@@ -172,6 +172,9 @@ def _predict_price(symbol: str, model: str = None) -> dict:
     if model is None:
         model = env.model.prediction_model
 
+    # 統一轉成小寫
+    model = model.lower()
+
     # 使用 Transformer 模型
     if model == "transformer":
         try:
