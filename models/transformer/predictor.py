@@ -62,7 +62,7 @@ class TransformerPredictor:
 
     def _prepare_features(self, price_data: list) -> np.ndarray:
         """
-        準備特徵資料
+        準備特徵資料（與訓練時相同的 20 個特徵）
 
         Args:
             price_data: 價格資料列表 [{date, open, high, low, close, volume}, ...]
@@ -74,28 +74,76 @@ class TransformerPredictor:
 
         df = pd.DataFrame(price_data)
 
-        # 計算技術指標
+        # ===== 價格變化特徵 =====
+        # 報酬率（多個時間尺度）
         df['return_1d'] = df['close'].pct_change(1)
+        df['return_3d'] = df['close'].pct_change(3)
         df['return_5d'] = df['close'].pct_change(5)
+        df['return_10d'] = df['close'].pct_change(10)
 
-        # RSI 14
-        delta = df['close'].diff()
-        gain = delta.where(delta > 0, 0).rolling(window=14).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-        rs = gain / (loss + 1e-10)
-        df['rsi_14'] = 100 - (100 / (1 + rs))
+        # 對數報酬率
+        df['log_return_1d'] = np.log(df['close'] / df['close'].shift(1))
 
-        # 波動率
-        df['volatility_7d'] = df['return_1d'].rolling(window=7).std()
+        # ===== RSI 指標（多個週期）=====
+        for period in [7, 14, 21]:
+            delta = df['close'].diff()
+            gain = delta.where(delta > 0, 0).rolling(window=period).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+            rs = gain / (loss + 1e-10)
+            df[f'rsi_{period}'] = 100 - (100 / (1 + rs))
 
-        # MA ratio
+        # ===== 波動率（多個時間窗口）=====
+        df['volatility_5d'] = df['return_1d'].rolling(window=5).std()
+        df['volatility_10d'] = df['return_1d'].rolling(window=10).std()
+        df['volatility_20d'] = df['return_1d'].rolling(window=20).std()
+
+        # ===== 移動平均線 =====
+        df['ma_5'] = df['close'].rolling(window=5).mean()
         df['ma_20'] = df['close'].rolling(window=20).mean()
-        df['ma_ratio'] = df['close'] / (df['ma_20'] + 1e-10)
+
+        # MA 比率
+        df['ma_ratio_5'] = df['close'] / (df['ma_5'] + 1e-10)
+        df['ma_ratio_20'] = df['close'] / (df['ma_20'] + 1e-10)
+
+        # MA 交叉信號
+        df['ma_cross_5_20'] = (df['ma_5'] - df['ma_20']) / (df['ma_20'] + 1e-10)
+
+        # ===== MACD =====
+        ema_12 = df['close'].ewm(span=12, adjust=False).mean()
+        ema_26 = df['close'].ewm(span=26, adjust=False).mean()
+        df['macd'] = ema_12 - ema_26
+        df['macd_signal'] = df['macd'].ewm(span=9, adjust=False).mean()
+        df['macd_hist'] = df['macd'] - df['macd_signal']
+
+        # ===== Bollinger Bands =====
+        df['bb_middle'] = df['close'].rolling(window=20).mean()
+        bb_std = df['close'].rolling(window=20).std()
+        df['bb_upper'] = df['bb_middle'] + 2 * bb_std
+        df['bb_lower'] = df['bb_middle'] - 2 * bb_std
+        df['bb_width'] = (df['bb_upper'] - df['bb_lower']) / (df['bb_middle'] + 1e-10)
+        df['bb_position'] = (df['close'] - df['bb_lower']) / (df['bb_upper'] - df['bb_lower'] + 1e-10)
+
+        # ===== 價格位置特徵 =====
+        df['high_low_ratio'] = (df['high'] - df['low']) / (df['low'] + 1e-10)
+        df['close_position'] = (df['close'] - df['low']) / (df['high'] - df['low'] + 1e-10)
+
+        # ===== 成交量特徵 =====
+        df['volume_ma_20'] = df['volume'].rolling(window=20).mean()
+        df['volume_ratio'] = df['volume'] / (df['volume_ma_20'] + 1e-10)
 
         # 取最後 seq_len 筆
         seq_len = self.config['model']['seq_len']
-        feature_cols = ['open', 'high', 'low', 'close', 'volume',
-                       'return_1d', 'return_5d', 'rsi_14', 'volatility_7d', 'ma_ratio']
+
+        # 使用與訓練相同的 20 個特徵
+        feature_cols = [
+            'return_1d', 'return_3d', 'return_5d', 'return_10d', 'log_return_1d',
+            'rsi_7', 'rsi_14', 'rsi_21',
+            'volatility_5d', 'volatility_10d', 'volatility_20d',
+            'ma_ratio_5', 'ma_ratio_20', 'ma_cross_5_20',
+            'macd_hist',
+            'bb_width', 'bb_position',
+            'high_low_ratio', 'close_position', 'volume_ratio'
+        ]
 
         features = df[feature_cols].values[-seq_len:]
 
@@ -106,6 +154,9 @@ class TransformerPredictor:
         mean = np.array(self.scaler_params['mean'])
         std = np.array(self.scaler_params['std'])
         features = (features - mean) / std
+
+        # clip 到 [-5, 5] 標準差範圍（與訓練時一致）
+        features = np.clip(features, -5, 5)
 
         return features
 
