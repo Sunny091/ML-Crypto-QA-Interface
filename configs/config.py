@@ -39,6 +39,8 @@ class ModelConfig(BaseModel):
     price_only_model_name: str
     price_text_model_name: str
     transformer_model_name: str
+    lstm_model_name: str
+    prediction_model: Literal["transformer", "lstm", "lightgbm"]
 
     @property
     def price_only_model_path(self) -> Path:
@@ -51,6 +53,10 @@ class ModelConfig(BaseModel):
     @property
     def transformer_model_path(self) -> Path:
         return self.model_dir / self.transformer_model_name
+
+    @property
+    def lstm_model_path(self) -> Path:
+        return self.model_dir / self.lstm_model_name
 
 
 class NewsConfig(BaseModel):
@@ -130,6 +136,8 @@ def load_config() -> Config:
                 price_only_model_name=_get_env("PRICE_ONLY_MODEL_NAME", "price_only_lgbm.pkl"),
                 price_text_model_name=_get_env("PRICE_TEXT_MODEL_NAME", "price_text_lgbm.pkl"),
                 transformer_model_name=_get_env("TRANSFORMER_MODEL_NAME", "transformer.pt"),
+                lstm_model_name=_get_env("LSTM_MODEL_NAME", "lstm.pt"),
+                prediction_model=_get_env("PREDICTION_MODEL", "transformer"),
             ),
             data=DataConfig(
                 price_data_source=_get_env("PRICE_DATA_SOURCE", "api"),
